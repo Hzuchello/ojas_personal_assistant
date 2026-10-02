@@ -1,0 +1,30 @@
+{
+  "name": "v.2.3.5",
+  "short_name": "v.2.3.5",
+  "description": "Assistente pessoal — agenda e chat",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e0d0b",
+  "theme_color": "#0e0d0b",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "mark-drop.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

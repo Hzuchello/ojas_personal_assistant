@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" fill="none">
+  <circle cx="52" cy="72" r="28" stroke="#c9a227" stroke-width="10"/>
+  <path d="M52 18 L64 38 H40 Z" fill="#c9a227"/>
+  <text x="100" y="78" fill="#c9a227" font-family="Outfit, Montserrat, Arial, sans-serif" font-size="52" font-weight="600" letter-spacing="2">ojas</text>
+  <text x="104" y="102" fill="#c9a227" font-family="Outfit, Montserrat, Arial, sans-serif" font-size="12" font-weight="500" letter-spacing="8">CALENDAR</text>
+</svg>
