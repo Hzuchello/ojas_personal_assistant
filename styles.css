@@ -31,7 +31,50 @@ body {
   margin: 0;
 }
 
-.layout { flex: 1; }
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(240px, 320px);
+  gap: 20px;
+  justify-content: center;
+  align-items: start;
+  padding: 0 16px 24px;
+}
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+}
+.note-col {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.note-col h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--gold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hoje-nota {
+  min-height: 100px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.note-link {
+  color: var(--gold);
+  font-size: 0.78rem;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+.note-link:hover { text-decoration: underline; }
 
 .cal-col {
   display: flex;
