@@ -194,6 +194,7 @@ function renderMonth() {
       selected = key;
       renderMonth();
       renderDay();
+      loadNota(key);
     });
     grid.appendChild(btn);
   }
