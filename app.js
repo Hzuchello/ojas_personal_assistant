@@ -122,10 +122,20 @@ async function loadAgenda() {
 }
 
 async function loadNotaHoje() {
+  loadNota(selected || ymd(new Date()));
+}
+
+async function loadNota(dia) {
   const el = $("#hoje-nota");
+  const titulo = $("#nota-titulo");
   if (!el || !token()) return;
-  el.textContent = "carregando…";
   const hoje = ymd(new Date());
+  if (titulo) {
+    titulo.textContent = dia === hoje
+      ? "Anotações de hoje"
+      : "Anotações de " + dia.split("-").reverse().join("/");
+  }
+  el.textContent = "carregando…";
   try {
     const res = await fetch(CONFIG.relatorioUrl, {
       method: "POST",
@@ -133,13 +143,13 @@ async function loadNotaHoje() {
       body: JSON.stringify({
         email: userEmail(),
         token: token(),
-        dia: hoje
+        dia
       })
     });
     if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     const texto = (data.texto || "").trim();
-    el.textContent = texto || "Sem anotação hoje.";
+    el.textContent = texto || "Sem anotação neste dia.";
   } catch {
     el.textContent = "Não foi possível carregar.";
   }
