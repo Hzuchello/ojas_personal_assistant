@@ -38,6 +38,7 @@ function mostrarApp(logado) {
     view.m = n.getMonth();
     selected = ymd(n);
     loadAgenda();
+    loadNotaHoje();
   }
 }
 
@@ -117,6 +118,31 @@ async function loadAgenda() {
   }
   renderMonth();
   renderDay();
+  loadNotaHoje();
+}
+
+async function loadNotaHoje() {
+  const el = $("#hoje-nota");
+  if (!el || !token()) return;
+  el.textContent = "carregando…";
+  const hoje = ymd(new Date());
+  try {
+    const res = await fetch(CONFIG.relatorioUrl, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        email: userEmail(),
+        token: token(),
+        dia: hoje
+      })
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    const texto = (data.texto || "").trim();
+    el.textContent = texto || "Sem anotação hoje.";
+  } catch {
+    el.textContent = "Não foi possível carregar.";
+  }
 }
 
 function setStatus(on) {
