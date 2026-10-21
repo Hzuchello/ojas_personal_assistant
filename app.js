@@ -272,10 +272,14 @@ function renderChart() {
   const days = new Date(view.y, view.m + 1, 0).getDate();
   const btg = [];
   const ylos = [];
+  let accB = 0;
+  let accY = 0;
   for (let d = 1; d <= days; d++) {
     const key = `${view.y}-${String(view.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    btg.push(tradeValor(key, "BTG"));
-    ylos.push(tradeValor(key, "Ylos"));
+    accB += tradeValor(key, "BTG");
+    accY += tradeValor(key, "Ylos");
+    btg.push(accB);
+    ylos.push(accY);
   }
   const all = btg.concat(ylos);
   const min = Math.min(0, ...all);
