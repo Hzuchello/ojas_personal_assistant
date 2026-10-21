@@ -37,7 +37,6 @@
       </a>
       <nav class="nav-pages">
         <a class="is-on" href="./index.html">Agenda</a>
-        <a href="./relatorio.html">Anotações</a>
       </nav>
       <div class="header-right">
         <span id="status" class="led" title="Status da agenda" aria-label="Status da agenda"></span>
@@ -63,10 +62,73 @@
       </section>
       <aside class="note-col">
         <h3 id="nota-titulo">Anotações de hoje</h3>
-        <div id="hoje-nota" class="hoje-nota">carregando…</div>
-        <a class="note-link" href="./relatorio.html">Abrir diário</a>
+        <textarea id="hoje-nota" class="hoje-nota" readonly></textarea>
+        <div class="note-actions">
+          <button type="button" id="btn-editar" class="note-btn">Editar</button>
+          <button type="button" id="btn-salvar" class="note-btn note-btn--gold" hidden>Salvar</button>
+          <button type="button" id="btn-cancelar" class="note-btn" hidden>Cancelar</button>
+        </div>
+        <p id="nota-hint" class="nota-hint"></p>
       </aside>
     </main>
+
+    <section class="perf">
+      <button type="button" class="acc-head" id="perf-toggle">
+        <h3>Desempenho</h3>
+        <span class="acc-icon" id="perf-icon">–</span>
+      </button>
+      <div class="acc-body" id="perf-body">
+        <canvas id="chart" class="trade-chart"></canvas>
+        <p id="chart-hint" class="nota-hint">
+          <span class="leg-btg">BTG — cinza</span>
+          <span class="leg-ylos">Ylos — dourado</span>
+        </p>
+      </div>
+    </section>
+
+    <section class="perf day-box">
+      <button type="button" class="acc-head" id="acc-toggle">
+        <h3>Detalhamento do mês</h3>
+        <span class="acc-icon" id="acc-icon">–</span>
+      </button>
+      <div class="acc-body" id="acc-body">
+        <div class="detalhe-top">
+          <form class="trade-form" id="trade-form" autocomplete="off">
+            <span class="trade-day" id="trade-day">—</span>
+            <label>BTG <input id="in-btg" inputmode="decimal" placeholder="0,00"></label>
+            <label>Ylos <input id="in-ylos" inputmode="decimal" placeholder="0,00"></label>
+            <button type="submit">Salvar</button>
+            <span class="trade-msg" id="trade-msg"></span>
+          </form>
+          <div class="totais">
+            <div class="total-card">
+              <span class="leg-btg">Total BTG</span>
+              <strong id="total-btg">—</strong>
+            </div>
+            <div class="total-card">
+              <span class="leg-ylos">Total Ylos</span>
+              <strong id="total-ylos">—</strong>
+            </div>
+          </div>
+        </div>
+        <table class="trade-table" id="trade-table">
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th>BTG</th>
+              <th>Ylos</th>
+              <th>Dia</th>
+              <th>BTG</th>
+              <th>Ylos</th>
+              <th>Dia</th>
+              <th>BTG</th>
+              <th>Ylos</th>
+            </tr>
+          </thead>
+          <tbody id="trade-body"></tbody>
+        </table>
+      </div>
+    </section>
 
     <div class="bot-widget" id="botWidget">
       <div class="bot-panel" id="botPanel" hidden>
