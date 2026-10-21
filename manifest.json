@@ -1,6 +1,6 @@
 {
-  "name": "v3.0",
-  "short_name": "v3.0",
+  "name": "v5.0",
+  "short_name": "v5.0",
   "description": "Assistente pessoal — agenda e chat",
   "start_url": "./index.html",
   "display": "standalone",
