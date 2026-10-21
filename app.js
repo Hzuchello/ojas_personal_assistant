@@ -7,7 +7,8 @@ const CONFIG = {
   loginUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-login",
   agendaUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-pwa-agenda",
   chatUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/bced152e-7c97-41a0-80e3-5dd0f640ebdd/chat",
-  relatorioUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-relatorio"
+  relatorioUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-relatorio",
+  tradingUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-trading"
 };
 
 const TOKEN_KEY = "ojasAuth";
@@ -39,6 +40,7 @@ function mostrarApp(logado) {
     selected = ymd(n);
     loadAgenda();
     loadNotaHoje();
+    loadDesempenho();
   }
 }
 
@@ -119,6 +121,30 @@ async function loadAgenda() {
   renderMonth();
   renderDay();
   loadNotaHoje();
+  loadDesempenho();
+}
+
+let notaOriginal = "";
+let notaVistoEm = null;
+let notaEditando = false;
+
+function setNotaModo(editar) {
+  notaEditando = editar;
+  const ta = $("#hoje-nota");
+  if (!ta) return;
+  ta.readOnly = !editar;
+  ta.classList.toggle("is-edit", editar);
+  const ed = $("#btn-editar");
+  const sv = $("#btn-salvar");
+  const ca = $("#btn-cancelar");
+  if (ed) ed.hidden = editar;
+  if (sv) sv.hidden = !editar;
+  if (ca) ca.hidden = !editar;
+}
+
+function notaHint(t) {
+  const el = $("#nota-hint");
+  if (el) el.textContent = t || "";
 }
 
 async function loadNotaHoje() {
@@ -129,13 +155,15 @@ async function loadNota(dia) {
   const el = $("#hoje-nota");
   const titulo = $("#nota-titulo");
   if (!el || !token()) return;
+  if (notaEditando && el.value !== notaOriginal && !confirm("Descartar edição?")) return;
+  setNotaModo(false);
   const hoje = ymd(new Date());
   if (titulo) {
     titulo.textContent = dia === hoje
       ? "Anotações de hoje"
       : "Anotações de " + dia.split("-").reverse().join("/");
   }
-  el.textContent = "carregando…";
+  el.value = "carregando…";
   try {
     const res = await fetch(CONFIG.relatorioUrl, {
       method: "POST",
@@ -148,12 +176,268 @@ async function loadNota(dia) {
     });
     if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
-    const texto = (data.texto || "").trim();
-    el.textContent = texto || "Sem anotação neste dia.";
+    notaOriginal = data.texto || "";
+    notaVistoEm = data.atualizado_em || null;
+    el.value = notaOriginal;
+    notaHint(notaOriginal ? "salvo no banco" : "sem anotação neste dia");
   } catch {
-    el.textContent = "Não foi possível carregar.";
+    el.value = "";
+    notaHint("Não foi possível carregar.");
   }
 }
+
+async function salvarNota() {
+  const el = $("#hoje-nota");
+  if (!el) return;
+  notaHint("salvando…");
+  try {
+    const res = await fetch(CONFIG.relatorioUrl, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        email: userEmail(),
+        token: token(),
+        dia: selected || ymd(new Date()),
+        texto: el.value,
+        atualizado_em: notaVistoEm
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 || data.conflito) {
+      alert("O banco tem uma versão mais nova. Recarregando.");
+      await loadNota(selected);
+      return;
+    }
+    if (!res.ok) throw new Error(data.erro || "Falha ao salvar");
+    notaOriginal = el.value;
+    notaVistoEm = data.atualizado_em || notaVistoEm;
+    setNotaModo(false);
+    notaHint("salvo");
+  } catch (e) {
+    notaHint(e.message || "Não foi possível salvar.");
+  }
+}
+
+let tradeRows = [];
+
+function mesKey() {
+  return `${view.y}-${String(view.m + 1).padStart(2, "0")}`;
+}
+function normalizarTrade(data) {
+  const raw = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.rows)
+        ? data.rows
+        : data && (data.area || data.dia)
+          ? [data]
+          : [];
+  return raw.map((x) => x.json || x).filter((x) => x && x.area && x.dia);
+}
+function tradeValor(dia, area) {
+  const r = tradeRows.find((x) => String(x.dia).slice(0, 10) === dia && x.area === area);
+  return r ? Number(r.valor) || 0 : 0;
+}
+async function loadDesempenho() {
+  const canvas = $("#chart");
+  if (!canvas || !token()) return;
+  try {
+    const res = await fetch(CONFIG.tradingUrl, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ acao: "ler", email: userEmail(), mes: mesKey(), token: token() })
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    tradeRows = normalizarTrade(await res.json());
+  } catch {
+    tradeRows = [];
+  }
+  renderChart();
+}
+function renderChart() {
+  const canvas = $("#chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(canvas.parentElement.clientWidth - 40, 640);
+  const h = 320;
+  canvas.style.width = "100%";
+  canvas.style.height = h + "px";
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const days = new Date(view.y, view.m + 1, 0).getDate();
+  const btg = [];
+  const ylos = [];
+  for (let d = 1; d <= days; d++) {
+    const key = `${view.y}-${String(view.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    btg.push(tradeValor(key, "BTG"));
+    ylos.push(tradeValor(key, "Ylos"));
+  }
+  const all = btg.concat(ylos);
+  const min = Math.min(0, ...all);
+  const max = Math.max(0, ...all);
+  const span = max - min || 1;
+  const pad = { l: 56, r: 16, t: 28, b: 36 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const yOf = (v) => pad.t + ih - ((v - min) / span) * ih;
+  const xOf = (i) => pad.l + (i / Math.max(days - 1, 1)) * iw;
+  const zeroY = yOf(0);
+
+  ctx.fillStyle = "rgba(125,154,106,0.10)";
+  ctx.fillRect(pad.l, pad.t, iw, Math.max(0, zeroY - pad.t));
+  ctx.fillStyle = "rgba(196,120,60,0.12)";
+  ctx.fillRect(pad.l, zeroY, iw, Math.max(0, pad.t + ih - zeroY));
+
+  ctx.strokeStyle = "#2c281f";
+  ctx.lineWidth = 1;
+  ctx.font = "11px Outfit, sans-serif";
+  ctx.fillStyle = "#9a8f76";
+  ctx.textAlign = "right";
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const v = min + (span * i) / steps;
+    const y = yOf(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(w - pad.r, y);
+    ctx.stroke();
+    ctx.fillText(v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }), pad.l - 8, y + 4);
+  }
+  ctx.textAlign = "center";
+  const marks = [1, Math.ceil(days / 2), days];
+  marks.forEach((d) => {
+    const x = xOf(d - 1);
+    ctx.beginPath();
+    ctx.moveTo(x, pad.t);
+    ctx.lineTo(x, pad.t + ih);
+    ctx.stroke();
+    ctx.fillText(`${d}/${view.m + 1}`, x, h - 10);
+  });
+
+  ctx.strokeStyle = "#c4783c";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(pad.l, zeroY);
+  ctx.lineTo(w - pad.r, zeroY);
+  ctx.stroke();
+
+  function line(arr, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    arr.forEach((v, i) => {
+      const x = xOf(i);
+      const y = yOf(v);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+  line(btg, "#9a8f76");
+  line(ylos, "#c9a227");
+  preencherDetalhe();
+  preencherForm();
+}
+
+function preencherDetalhe() {
+  const body = $("#trade-body");
+  const tb = $("#total-btg");
+  const ty = $("#total-ylos");
+  if (!body) return;
+  const days = new Date(view.y, view.m + 1, 0).getDate();
+  const fmt = (n) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const cor = (n) => (n < 0 ? "v-neg" : n > 0 ? "v-pos" : "");
+  let sumB = 0;
+  let sumY = 0;
+  const cells = [];
+  for (let d = 1; d <= days; d++) {
+    const key = `${view.y}-${String(view.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const b = tradeValor(key, "BTG");
+    const y = tradeValor(key, "Ylos");
+    sumB += b;
+    sumY += y;
+    const mark = key === selected ? " is-day" : "";
+    cells.push(
+      `<td class="day-btn${mark}" data-dia="${key}">${d}/${view.m + 1}</td>` +
+      `<td class="${mark}"><span class="${cor(b)}">${fmt(b)}</span></td>` +
+      `<td class="${mark}"><span class="${cor(y)}">${fmt(y)}</span></td>`
+    );
+  }
+  const third = Math.ceil(cells.length / 3);
+  const empty = "<td></td><td></td><td></td>";
+  const rowsHtml = [];
+  for (let i = 0; i < third; i++) {
+    const a = cells[i] || empty;
+    const b = cells[i + third] || empty;
+    const c = cells[i + third * 2] || empty;
+    rowsHtml.push(`<tr>${a}${b}${c}</tr>`);
+  }
+  body.innerHTML = rowsHtml.join("");
+  if (tb) tb.innerHTML = `<span class="${cor(sumB)}">${fmt(sumB)}</span>`;
+  if (ty) ty.innerHTML = `<span class="${cor(sumY)}">${fmt(sumY)}</span>`;
+  body.querySelectorAll(".day-btn").forEach((el) => {
+    el.addEventListener("click", () => {
+      selected = el.dataset.dia;
+      renderMonth();
+      renderDay();
+      loadNota(selected);
+      preencherDetalhe();
+      preencherForm();
+    });
+  });
+}
+
+function preencherForm() {
+  const label = $("#trade-day");
+  if (!label) return;
+  const [yy, m, d] = (selected || ymd(new Date())).split("-");
+  label.textContent = `${Number(d)}/${m}/${yy}`;
+  const b = tradeValor(selected, "BTG");
+  const y = tradeValor(selected, "Ylos");
+  $("#in-btg").value = b ? String(b).replace(".", ",") : "";
+  $("#in-ylos").value = y ? String(y).replace(".", ",") : "";
+}
+
+function parseNum(s) {
+  const n = Number(String(s || "").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function salvarArea(area, valor) {
+  const res = await fetch(CONFIG.tradingUrl, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({
+      acao: "salvar",
+      email: userEmail(),
+      dia: selected,
+      area,
+      valor,
+      obs: "",
+      token: token()
+    })
+  });
+  if (!res.ok) throw new Error(String(res.status));
+}
+
+$("#trade-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("#trade-msg");
+  if (msg) msg.textContent = "salvando…";
+  try {
+    await salvarArea("BTG", parseNum($("#in-btg").value));
+    await salvarArea("Ylos", parseNum($("#in-ylos").value));
+    await loadDesempenho();
+    if (msg) msg.textContent = "salvo";
+  } catch {
+    if (msg) msg.textContent = "falhou";
+  }
+});
 
 function setStatus(on) {
   const el = $("#status");
@@ -205,6 +489,8 @@ function renderMonth() {
       renderMonth();
       renderDay();
       loadNota(key);
+      preencherDetalhe();
+      preencherForm();
     });
     grid.appendChild(btn);
   }
@@ -313,6 +599,19 @@ $("#btn-sair")?.addEventListener("click", () => {
   mostrarApp(false);
 });
 
+$("#btn-editar")?.addEventListener("click", () => {
+  setNotaModo(true);
+  $("#hoje-nota")?.focus();
+  notaHint("editando");
+});
+$("#btn-cancelar")?.addEventListener("click", () => {
+  const el = $("#hoje-nota");
+  if (el) el.value = notaOriginal;
+  setNotaModo(false);
+  notaHint("cancelado");
+});
+$("#btn-salvar")?.addEventListener("click", () => salvarNota());
+
 $("#prev")?.addEventListener("click", async () => {
   view.m -= 1;
   if (view.m < 0) { view.m = 11; view.y -= 1; }
@@ -374,5 +673,21 @@ if (mic && SR) {
 if ($("#thread") && !$("#thread").childElementCount) {
   addBubble("Pergunte pelos compromissos de hoje, amanhã ou uma data.", "bot");
 }
+
+$("#perf-toggle")?.addEventListener("click", () => {
+  const body = $("#perf-body");
+  const icon = $("#perf-icon");
+  if (!body) return;
+  body.hidden = !body.hidden;
+  if (icon) icon.textContent = body.hidden ? "+" : "–";
+  if (!body.hidden) renderChart();
+});
+$("#acc-toggle")?.addEventListener("click", () => {
+  const body = $("#acc-body");
+  const icon = $("#acc-icon");
+  if (!body) return;
+  body.hidden = !body.hidden;
+  if (icon) icon.textContent = body.hidden ? "+" : "–";
+});
 
 mostrarApp(!!token());
