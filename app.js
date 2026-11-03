@@ -4,44 +4,27 @@ const MONTHS = [
 ];
 
 const CONFIG = {
-  loginUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-login",
   agendaUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-pwa-agenda",
   chatUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/bced152e-7c97-41a0-80e3-5dd0f640ebdd/chat",
   relatorioUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-relatorio",
   tradingUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-trading"
 };
 
-const TOKEN_KEY = "ojasAuth";
-const EMAIL_KEY = "ojasEmail";
+const EMAIL = "henriquezuchello@gmail.com";
 const $ = (s) => document.querySelector(s);
 
-function token() {
-  return sessionStorage.getItem(TOKEN_KEY) || "";
-}
-
-function setToken(v) {
-  if (v) sessionStorage.setItem(TOKEN_KEY, v);
-  else {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(EMAIL_KEY);
-  }
-}
 function userEmail() {
-  return sessionStorage.getItem(EMAIL_KEY) || "";
+  return EMAIL;
 }
 
-function mostrarApp(logado) {
-  $("#login-view").hidden = logado;
-  $("#app-view").hidden = !logado;
-  if (logado) {
-    const n = new Date();
-    view.y = n.getFullYear();
-    view.m = n.getMonth();
-    selected = ymd(n);
-    loadAgenda();
-    loadNotaHoje();
-    loadDesempenho();
-  }
+function boot() {
+  const n = new Date();
+  view.y = n.getFullYear();
+  view.m = n.getMonth();
+  selected = ymd(n);
+  loadAgenda();
+  loadNotaHoje();
+  loadDesempenho();
 }
 
 const FALLBACK = [];
@@ -102,13 +85,8 @@ async function loadAgenda() {
     const res = await fetch(CONFIG.agendaUrl, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ after, before, token: token() })
+      body: JSON.stringify({ after, before, email: userEmail() })
     });
-    if (res.status === 401) {
-      setToken("");
-      mostrarApp(false);
-      return;
-    }
     if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     const list = normalize(data);
@@ -154,7 +132,7 @@ async function loadNotaHoje() {
 async function loadNota(dia) {
   const el = $("#hoje-nota");
   const titulo = $("#nota-titulo");
-  if (!el || !token()) return;
+  if (!el) return;
   if (notaEditando && el.value !== notaOriginal && !confirm("Descartar edição?")) return;
   setNotaModo(false);
   const hoje = ymd(new Date());
@@ -170,7 +148,6 @@ async function loadNota(dia) {
       headers: headers(),
       body: JSON.stringify({
         email: userEmail(),
-        token: token(),
         dia
       })
     });
@@ -196,7 +173,6 @@ async function salvarNota() {
       headers: headers(),
       body: JSON.stringify({
         email: userEmail(),
-        token: token(),
         dia: selected || ymd(new Date()),
         texto: el.value,
         atualizado_em: notaVistoEm
@@ -241,12 +217,12 @@ function tradeValor(dia, area) {
 }
 async function loadDesempenho() {
   const canvas = $("#chart");
-  if (!canvas || !token()) return;
+  if (!canvas) return;
   try {
     const res = await fetch(CONFIG.tradingUrl, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ acao: "ler", email: userEmail(), mes: mesKey(), token: token() })
+      body: JSON.stringify({ acao: "ler", email: userEmail(), mes: mesKey() })
     });
     if (!res.ok) throw new Error(String(res.status));
     tradeRows = normalizarTrade(await res.json());
@@ -422,8 +398,7 @@ async function salvarArea(area, valor) {
       dia: selected,
       area,
       valor,
-      obs: "",
-      token: token()
+      obs: ""
     })
   });
   if (!res.ok) throw new Error(String(res.status));
@@ -550,8 +525,7 @@ async function send() {
       body: JSON.stringify({
         action: "sendMessage",
         sessionId,
-        chatInput: q,
-        token: token()
+        chatInput: q
       })
     });
     if (!res.ok) throw new Error(String(res.status));
@@ -568,40 +542,6 @@ async function send() {
       "Chat offline. Confira o webhook ojas-pwa-chat.";
   }
 }
-
-$("#login-form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const erro = $("#login-erro");
-  erro.hidden = true;
-  const email = $("#login-email").value.trim();
-  const senha = $("#login-senha").value;
-  const btn = $("#login-btn");
-  btn.disabled = true;
-  btn.textContent = "Entrando…";
-  try {
-    const res = await fetch(CONFIG.loginUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, senha })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.token) throw new Error(data.erro || "E-mail ou senha inválidos.");
-    setToken(data.token);
-    sessionStorage.setItem(EMAIL_KEY, email.toLowerCase());
-    mostrarApp(true);
-  } catch (err) {
-    erro.textContent = err.message || "Não foi possível entrar.";
-    erro.hidden = false;
-  }
-  btn.disabled = false;
-  btn.textContent = "Entrar";
-});
-
-$("#btn-sair")?.addEventListener("click", () => {
-  setToken("");
-  sessionStorage.removeItem("ojasChatSession");
-  mostrarApp(false);
-});
 
 $("#btn-editar")?.addEventListener("click", () => {
   setNotaModo(true);
@@ -694,4 +634,4 @@ $("#acc-toggle")?.addEventListener("click", () => {
   if (icon) icon.textContent = body.hidden ? "+" : "–";
 });
 
-mostrarApp(!!token());
+boot();
