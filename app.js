@@ -4,27 +4,44 @@ const MONTHS = [
 ];
 
 const CONFIG = {
+  loginUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-login",
   agendaUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-pwa-agenda",
   chatUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/bced152e-7c97-41a0-80e3-5dd0f640ebdd/chat",
   relatorioUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-relatorio",
   tradingUrl: "https://overfunctioning-undefensibly-johnette.ngrok-free.dev/webhook/ojas-trading"
 };
 
-const EMAIL = "henriquezuchello@gmail.com";
+const TOKEN_KEY = "ojasAuth";
+const EMAIL_KEY = "ojasEmail";
 const $ = (s) => document.querySelector(s);
 
-function userEmail() {
-  return EMAIL;
+function token() {
+  return sessionStorage.getItem(TOKEN_KEY) || "";
 }
 
-function boot() {
-  const n = new Date();
-  view.y = n.getFullYear();
-  view.m = n.getMonth();
-  selected = ymd(n);
-  loadAgenda();
-  loadNotaHoje();
-  loadDesempenho();
+function setToken(v) {
+  if (v) sessionStorage.setItem(TOKEN_KEY, v);
+  else {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(EMAIL_KEY);
+  }
+}
+function userEmail() {
+  return sessionStorage.getItem(EMAIL_KEY) || "";
+}
+
+function mostrarApp(logado) {
+  $("#login-view").hidden = logado;
+  $("#app-view").hidden = !logado;
+  if (logado) {
+    const n = new Date();
+    view.y = n.getFullYear();
+    view.m = n.getMonth();
+    selected = ymd(n);
+    loadAgenda();
+    loadNotaHoje();
+    loadDesempenho();
+  }
 }
 
 const FALLBACK = [];
@@ -85,8 +102,13 @@ async function loadAgenda() {
     const res = await fetch(CONFIG.agendaUrl, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ after, before, email: userEmail() })
+      body: JSON.stringify({ after, before, token: token() })
     });
+    if (res.status === 401) {
+      setToken("");
+      mostrarApp(false);
+      return;
+    }
     if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     const list = normalize(data);
@@ -132,7 +154,7 @@ async function loadNotaHoje() {
 async function loadNota(dia) {
   const el = $("#hoje-nota");
   const titulo = $("#nota-titulo");
-  if (!el) return;
+  if (!el || !token()) return;
   if (notaEditando && el.value !== notaOriginal && !confirm("Descartar edição?")) return;
   setNotaModo(false);
   const hoje = ymd(new Date());
@@ -148,6 +170,7 @@ async function loadNota(dia) {
       headers: headers(),
       body: JSON.stringify({
         email: userEmail(),
+        token: token(),
         dia
       })
     });
@@ -165,7 +188,7 @@ async function loadNota(dia) {
 
 async function salvarNota() {
   const el = $("#hoje-nota");
-  if (!el) return;
+  if (!el || !token()) return;
   notaHint("salvando…");
   try {
     const res = await fetch(CONFIG.relatorioUrl, {
@@ -173,6 +196,7 @@ async function salvarNota() {
       headers: headers(),
       body: JSON.stringify({
         email: userEmail(),
+        token: token(),
         dia: selected || ymd(new Date()),
         texto: el.value,
         atualizado_em: notaVistoEm
@@ -217,12 +241,12 @@ function tradeValor(dia, area) {
 }
 async function loadDesempenho() {
   const canvas = $("#chart");
-  if (!canvas) return;
+  if (!canvas || !token()) return;
   try {
     const res = await fetch(CONFIG.tradingUrl, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ acao: "ler", email: userEmail(), mes: mesKey() })
+      body: JSON.stringify({ acao: "ler", email: userEmail(), mes: mesKey(), token: token() })
     });
     if (!res.ok) throw new Error(String(res.status));
     tradeRows = normalizarTrade(await res.json());
@@ -233,7 +257,7 @@ async function loadDesempenho() {
 }
 function renderChart() {
   const canvas = $("#chart");
-  if (!canvas) return;
+  if (!canvas || !token()) return;
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(canvas.parentElement.clientWidth - 40, 640);
@@ -398,7 +422,8 @@ async function salvarArea(area, valor) {
       dia: selected,
       area,
       valor,
-      obs: ""
+      obs: "",
+      token: token()
     })
   });
   if (!res.ok) throw new Error(String(res.status));
@@ -420,7 +445,7 @@ $("#trade-form")?.addEventListener("submit", async (e) => {
 
 function setStatus(on) {
   const el = $("#status");
-  if (!el) return;
+  if (!el || !token()) return;
   el.classList.toggle("is-on", !!on);
   el.classList.toggle("is-off", !on);
   el.title = on ? "Agenda ligada" : "Agenda offline";
@@ -525,7 +550,8 @@ async function send() {
       body: JSON.stringify({
         action: "sendMessage",
         sessionId,
-        chatInput: q
+        chatInput: q,
+        token: token()
       })
     });
     if (!res.ok) throw new Error(String(res.status));
@@ -634,4 +660,39 @@ $("#acc-toggle")?.addEventListener("click", () => {
   if (icon) icon.textContent = body.hidden ? "+" : "–";
 });
 
-boot();
+
+$("#login-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const erro = $("#login-erro");
+  erro.hidden = true;
+  const email = $("#login-email").value.trim();
+  const senha = $("#login-senha").value;
+  const btn = $("#login-btn");
+  btn.disabled = true;
+  btn.textContent = "Entrando…";
+  try {
+    const res = await fetch(CONFIG.loginUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, senha })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.token) throw new Error(data.erro || "E-mail ou senha inválidos.");
+    setToken(data.token);
+    sessionStorage.setItem(EMAIL_KEY, email.toLowerCase());
+    mostrarApp(true);
+  } catch (err) {
+    erro.textContent = err.message || "Não foi possível entrar.";
+    erro.hidden = false;
+  }
+  btn.disabled = false;
+  btn.textContent = "Entrar";
+});
+
+$("#btn-sair")?.addEventListener("click", () => {
+  setToken("");
+  sessionStorage.removeItem("ojasChatSession");
+  mostrarApp(false);
+});
+
+mostrarApp(!!token());
